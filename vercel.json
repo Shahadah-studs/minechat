@@ -1,8 +1,0 @@
-{
-  "version": 2,
-  "routes": [
-    { "src": "/api/ws", "dest": "/api/ws.js" },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/public/index.html" }
-  ]
-}
