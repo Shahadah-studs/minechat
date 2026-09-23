@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MineChat - Gaming Hub</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #141414; color: #f5f5f5; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+        .card { background: #1f1f1f; padding: 25px; border-radius: 12px; border: 1px solid #333; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .hidden { display: none; }
+        .brand { text-align: center; color: #4caf50; font-family: 'Courier New', Courier, monospace; font-size: 2.5em; margin: 10px 0; text-shadow: 2px 2px #1b5e20; }
+        input, select, button { padding: 12px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 6px; margin-bottom: 12px; width: 100%; box-sizing: border-box; font-size: 1em; }
+        button { background: #4caf50; cursor: pointer; font-weight: bold; border: none; transition: 0.2s; }
+        button:hover { background: #43a047; }
+        .app-layout { display: grid; grid-template-columns: 1.2fr 1.8fr; gap: 20px; }
+        .chat-box { height: 350px; overflow-y: auto; border: 1px solid #333; padding: 15px; margin-bottom: 12px; background: #181818; border-radius: 6px; }
+        .msg { margin-bottom: 10px; line-height: 1.4; border-bottom: 1px solid #252525; padding-bottom: 5px; }
+        .msg-user { color: #81c784; font-weight: bold; }
+        .post { background: #282828; padding: 15px; margin-bottom: 12px; border-radius: 6px; border-left: 4px solid #4caf50; }
+        .post-meta { font-size: 0.8em; color: #aaa; text-transform: uppercase; font-weight: bold; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 class="brand">⛏️ MineChat</h1>
+
+    <div id="auth-screen" class="card">
+        <h2>Email Authentication</h2>
+        <input type="email" id="email" placeholder="Enter your email address">
+        <input type="password" id="password" placeholder="Enter your password">
+        <input type="text" id="username" placeholder="Username (For Sign Up)">
+        <button id="btn-login">Log In</button>
+        <button id="btn-signup" style="background:#2d2d2d; border: 1px solid #555;">Create New Account</button>
+    </div>
+
+    <div id="app-screen" class="app-layout hidden">
+        <div class="card">
+            <h3>💬 Global Chat</h3>
+            <div id="chat-messages" class="chat-box"></div>
+            <div style="display: flex; gap: 8px;">
+                <input type="text" id="chat-input" placeholder="Type a message..." style="margin:0;">
+                <button id="btn-send" style="width: auto; padding: 0 20px;">Send</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📝 Share a Post</h3>
+            <select id="post-category">
+                <option value="General">General Discussion</option>
+                <option value="Gaming">Gaming / Servers</option>
+                <option value="Memes">Memes & Media</option>
+            </select>
+            <input type="text" id="post-input" placeholder="What's on your mind?">
+            <button id="btn-post">Publish Post</button>
+            
+            <h3>📋 Community Feed</h3>
+            <div id="feed-container"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = window.location.origin;
+    let ws;
+    let currentUser = null;
+
+    const authScreen = document.getElementById('auth-screen');
+    const appScreen = document.getElementById('app-screen');
+    const chatMessages = document.getElementById('chat-messages');
+
+    document.getElementById('btn-signup').addEventListener('click', async () => {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const username = document.getElementById('username').value;
+
+        const res = await fetch(`${API_URL}/api/signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password, username })
+        });
+        const data = await res.json();
+        alert(data.message || data.error);
+    });
+
+    document.getElementById('btn-login').addEventListener('click', async () => {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+
+        const res = await fetch(`${API_URL}/api/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            currentUser = data.username;
+            authScreen.classList.add('hidden');
+            appScreen.classList.remove('hidden');
+            connectWebSocket();
+            loadPosts();
+        } else {
+            alert(data.error);
+        }
+    });
+
+    function connectWebSocket() {
+        const wsProto = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        ws = new WebSocket(`${wsProto}${window.location.host}/api/ws`);
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            const msgEl = document.createElement('div');
+            msgEl.className = 'msg';
+            msgEl.innerHTML = `<span class="msg-user">${data.username}:</span> ${data.content}`;
+            chatMessages.appendChild(msgEl);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        };
+
+        ws.onclose = () => setTimeout(connectWebSocket, 1500); 
+    }
+
+    document.getElementById('btn-send').addEventListener('click', () => {
+        const input = document.getElementById('chat-input');
+        if (input.value.trim() === '' || !ws) return;
+
+        ws.send(JSON.stringify({ type: 'send_message', username: currentUser, content: input.value }));
+        input.value = '';
+    });
+
+    document.getElementById('btn-post').addEventListener('click', async () => {
+        const content = document.getElementById('post-input').value;
+        const category = document.getElementById('post-category').value;
+        if (content.trim() === '') return;
+
+        await fetch(`${API_URL}/api/posts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: currentUser, content, category })
+        });
+
+        document.getElementById('post-input').value = '';
+        loadPosts();
+    });
+
+    async function loadPosts() {
+        const res = await fetch(`${API_URL}/api/posts`);
+        const posts = await res.json();
+        const container = document.getElementById('feed-container');
+        container.innerHTML = '';
+
+        posts.forEach(post => {
+            const postEl = document.createElement('div');
+            postEl.className = 'post';
+            postEl.innerHTML = `
+                <div class="post-meta">[${post.category}] Posted by ${post.username}</div>
+                <div>${post.content}</div>
+            `;
+            container.appendChild(postEl);
+        });
+    }
+</script>
+</body>
+</html>
