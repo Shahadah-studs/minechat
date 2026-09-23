@@ -1,0 +1,14 @@
+{
+  "name": "minechat",
+  "version": "1.0.0",
+  "description": "MineChat real-time serverless platform",
+  "main": "api/ws.js",
+  "scripts": {
+    "start": "node api/ws.js"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.34.0",
+    "bcryptjs": "^2.4.3",
+    "ws": "^8.18.0"
+  }
+}
